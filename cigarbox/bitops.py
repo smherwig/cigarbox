@@ -13,6 +13,8 @@ import array
 #
 #   isset(9)
 
+_INDEX_ERR_FMT = 'invalid bit index (%d) for BitMap(nbits=%d)'
+
 class Bitmap:
     def __init__(self, nbits):
         x = nbits / 8 
@@ -24,32 +26,28 @@ class Bitmap:
 
     def isset(self, i):
         if i >= self._nbits or i < 0:
-            raise IndexError('invalid bit index (%d) for BitMap(nbits=%d)' %
-                    (i, self._nbits))
+            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
         x = i >> 3  
         y = 0x80 >> (i & 7)
         return bool(self._a[x] & y)
 
     def set(self, i):
         if i >= self._nbits or i < 0:
-            raise IndexError('invalid bit index (%d) for BitMap(nbits=%d)' %
-                    (i, self._nbits))
+            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
         x = i >> 3  
         y = 0x80 >> (i & 7)
         self._a[x] |= y
 
     def clr(self, i):
         if i >= self._nbits or i < 0:
-            raise IndexError('invalid bit index (%d) for BitMap(nbits=%d)' %
-                    (i, self._nbits))
+            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
         x = i >> 3  
         y = ~(0x80 >> (i & 7))
         self._a[x] &= y
 
     def nset(self, start, stop):
         if start < 0 or start >= self._nbits or stop < 0 or stop >= self._nbits:
-            raise IndexError('invalid bit index (%d) for BitMap(nbits=%d)' %
-                    (i, self._nbits))
+            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
         if start > stop:
             raise ValueError('start bit index (%d) greater than stop index (%d)' %
                     (start, stop))
@@ -60,8 +58,7 @@ class Bitmap:
 
     def nclr(self, start, stop):
         if start < 0 or start >= self._nbits or stop < 0 or stop >= self._nbits:
-            raise IndexError('invalid bit index (%d) for BitMap(nbits=%d)' %
-                    (i, self._nbits))
+            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
         if start > stop:
             raise ValueError('start bit index (%d) greater than stop index (%d)' %
                     (start, stop))
@@ -85,7 +82,6 @@ class Bitmap:
 
     def flc(self):
         pass
-
 
 def isset(n, i):
     pass

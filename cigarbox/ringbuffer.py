@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+_EOF_READ_FMT = "can't read %d bytes from RingBuffer; buffer only has %d unread bytes"
+_EOF_WRITE_FMT = "can't write %d bytes to RingBuffer; buffer only has %d bytes available"
+
 class RingBuffer:
     def __init__(self, size):
         self._size = size
@@ -46,7 +49,7 @@ class RingBuffer:
         size = 1
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('>B', i)
         self._put(s)
         return size
@@ -55,7 +58,7 @@ class RingBuffer:
         size = 2
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('>H', i)
         self._put(s)
         return size
@@ -64,7 +67,7 @@ class RingBuffer:
         size = 4
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('>I', i)
         self._put(s)
         return size
@@ -73,7 +76,7 @@ class RingBuffer:
         size = 8
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('>Q', i)
         self._put(s)
         return size
@@ -82,7 +85,7 @@ class RingBuffer:
         size = 2
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('<H', i)
         self._put(s)
         return size
@@ -91,7 +94,7 @@ class RingBuffer:
         size = 4
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('<I', i)
         self._put(s)
         return size
@@ -100,7 +103,7 @@ class RingBuffer:
         size = 8
         avail = self.avail_write()
         if avail < size:
-            raise
+            raise EOFError(EOF_WRITE_FMT, size, avail)
         s = struct.pack('<Q', i)
         self._put(s)
         return size
@@ -149,7 +152,7 @@ class RingBuffer:
         size = 1
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('>B', s)[0]
         return num
@@ -158,7 +161,7 @@ class RingBuffer:
         size = 2
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('>H', s)[0]
         return num
@@ -167,7 +170,7 @@ class RingBuffer:
         size = 4
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('>I', s)[0]
         return num
@@ -176,7 +179,7 @@ class RingBuffer:
         size = 8
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('>Q', s)[0]
         return num
@@ -185,7 +188,7 @@ class RingBuffer:
         size = 2
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('<H', s)[0]
         return num
@@ -194,7 +197,7 @@ class RingBuffer:
         size = 4
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('<I', s)[0]
         return num
@@ -203,7 +206,7 @@ class RingBuffer:
         size = 8
         avail = self.avail_read()
         if avail < size:
-            raise
+            raise EOFError(_EOF_READ_FMT, size, have)
         s = self._read(size)
         num = struct.unpack('<Q', s)[0]
         return num

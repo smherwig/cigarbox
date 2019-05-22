@@ -6,30 +6,10 @@ _EOF_READ_FMT = "can't read %d bytes from IOBuffer; buffer only has %d bytes lef
 
 _EOF_WRITE_FMT = "can't write %d bytes to bounded (maxsize=%d) IOBuffer; buffer only has %d bytes available"
 
-class IOBuffer:
-    def __init__(self, maxsize=-1):
-        self._a = bytearray()
-        self._i = 0
-        self.maxsize = maxsize
-
-    def __len__(self):
-        return len(self._a)
-
-    def clear(self):
-        self._a = bytearray()
-        self._i = 0
-
-    def tell(self):
-        return self._i
-
-    def rewind(self):
-        self._i = 0
-
-    def seek(self, offset, whence=0):
-        pass
-
-    def truncate(self, size=None):
-        pass
+class SkBuffer:
+    def __init__(self, sock):
+        self.sock = sock
+        self._data = bytearray()
 
     def read(self, n):
         z = len(self._a)
@@ -212,7 +192,7 @@ class IOBuffer:
         self._i = newi
         return size
 
-    def printf(self, fmt, *args):
+    def write_fmt(self, fmt, *args):
         s = fmt % args
         size = len(s)
         newi = self._i + size
@@ -235,7 +215,7 @@ class IOBuffer:
         return size
 
 if __name__ == '__main__':
-    b = IOBuffer()
+    b = SkBuffer()
     b.write_u32be(54)
     b.write('Hello, World!')
     b.write_u16be(76)
