@@ -5,7 +5,7 @@ install:
 	pip install --user .
 
 devinstall:
-	pip install -e .
+	pip install --user -e .
 
 uninstall:
 	pip uninstall mbx 

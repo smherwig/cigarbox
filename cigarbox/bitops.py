@@ -13,99 +13,94 @@ import array
 #
 #   isset(9)
 
-_INDEX_ERR_FMT = 'invalid bit index (%d) for BitMap(nbits=%d)'
+_INDEX_ERR_FMT = 'invalid bit index (%d) for BitMap(nbits=%d, resizeable=%s)'
 
 class Bitmap:
-    def __init__(self, nbits):
+    def __init__(self, nbits=64, resizeable=True):
         x = nbits / 8 
         y = nbits % 8 
         if y != 0:
             x = x +1
         self._nbits = nbits
+        self._resizeable = resizeable
         self._a = array.array('B', [0 for i in xrange(x)])
 
-    def isset(self, i):
-        if i >= self._nbits or i < 0:
-            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
+    def _resize(self, nbits):
+        x = nbits / 8 
+        y = nbits % 8 
+        if y != 0:
+            x = x +1
+        need = x - len(self._a)
+        assert need > 0
+        self._nbits = nbits
+        self._a.extend([0 for i in xrange(need)])
+
+    def _check_arg(self, i):
+        if i < 0:
+            raise IndexError(_INDEX_ERR_FMT %
+                    (i, self._nbits, self._resizeable))
+
+        if i >= self._nbits:
+            if not self._resizeable:
+                raise IndexError(_INDEX_ERR_FMT %
+                        (i, self._nbits, self._resizeable))
+            else:
+                self._resize(i+1)
+
+    def _is_set(self, i):
         x = i >> 3  
         y = 0x80 >> (i & 7)
         return bool(self._a[x] & y)
 
-    def set(self, i):
+    def is_set(self, i):
         if i >= self._nbits or i < 0:
             raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
+        return self._is_set(i)
+
+    def set(self, i):
+        self._check_arg(i)
         x = i >> 3  
         y = 0x80 >> (i & 7)
         self._a[x] |= y
 
     def clr(self, i):
-        if i >= self._nbits or i < 0:
-            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
+        self._check_arg(i)
         x = i >> 3  
         y = ~(0x80 >> (i & 7))
         self._a[x] &= y
-
-    def nset(self, start, stop):
-        if start < 0 or start >= self._nbits or stop < 0 or stop >= self._nbits:
-            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
-        if start > stop:
-            raise ValueError('start bit index (%d) greater than stop index (%d)' %
-                    (start, stop))
-        for i in xrange(start, stop+1):
-            x = i >> 3  
-            y = 0x80 >> (i & 7)
-            self._a[x] |= y
-
-    def nclr(self, start, stop):
-        if start < 0 or start >= self._nbits or stop < 0 or stop >= self._nbits:
-            raise IndexError(_INDEX_ERR_FMT % (i, self._nbits))
-        if start > stop:
-            raise ValueError('start bit index (%d) greater than stop index (%d)' %
-                    (start, stop))
-        for i in xrange(start, stop+1):
-            x = i >> 3  
-            y = ~(0x80 >> (i & 7))
-            self._a[x] &= y
 
     def zero(self):
         for i in len(xrange(self._a)):
             self._a[i] = 0
 
     def ffs(self):
-        pass
+        for i in xrange(0, self._nbits):
+            if self._is_set(i):
+                return i
+        return -1
 
     def fls(self):
-        pass
+        for i in xrange(self._nbits-1, -1, -1):
+            if self._is_set(i):
+                return i
+        return -1
 
     def ffc(self):
-        pass
+        for i in xrange(0, self._nbits):
+            if not self._is_set(i):
+                return i
+        if self._resizeable:
+            self._resize(self._nbits + 1)
+            return self._nbits - 1
+        else:
+            return -1
 
     def flc(self):
-        pass
-
-def isset(n, i):
-    pass
-
-def ffs_u32(n):
-    pass
-
-def fls_u32(n):
-    pass
-
-def ffc_u32(n):
-    pass
-
-def flc_u32(n):
-    pass
-
-def ffs_u64(n):
-    pass
-
-def fls_u32(n):
-    pass
-
-def ffc_u64(n):
-    pass
-
-def flc_u64(n):
-    pass
+        for i in xrange(self._nbits-1, -1, -1):
+            if not self._is_set(i):
+                return i
+        if self._resizeable:
+            self._resize(self._nbits + 1)
+            return self._nbits - 1
+        else:
+            return -1
