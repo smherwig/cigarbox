@@ -53,20 +53,18 @@ class NBBSocket:
         """
         need = count - self.have()
         print '> recv: have=%d, count=%d, need=%d' % (self.have(), count, need)
-        got = 0
-        while got < need:
+        while self.have() < need:
             try:
                 data = self.sock.recv(BUF_SIZE)
             except socket.error as e:
                 if e.errno == errno.EINTR:
                     continue
                 else:
-                    raise NBBSocketError(e, received=got)
+                    raise NBBSocketError(e, received=self.have())
             if not data:
                 break
-            self.rbuf.extend(data) 
-            got += len(data)
             print 'got (%d bytes): %s' % (len(data), data)
+            self.rbuf.extend(data) 
         ret = self.take(count)
         print '< recv: (%d bytes): %s' % (len(ret), ret)
         return ret
@@ -87,24 +85,35 @@ class NBBSocket:
     def recv_delim(self, delim):
         ret = bytearray()
         while True:
+            e = None
             try:
                 data = self.recv(BUF_SIZE)
             except NBBSocketError as e:
                 if e.errno == errno.EAGAIN:
-                    self.give(ret)
+                    if  e.received > 0:
+                        data = self.take(e.received)
+                    else:
+                        raise
+                else:
                     raise
+
             if data == '':
                 break
-            else:
-                i = data.index(delim)
-                if i == -1:
-                    ret.extend(data)
+
+            i = data.index(delim)
+            if i == -1:
+                if e:
+                    self.give(ret)
+                    raise e
                 else:
-                    a = data[:i]
-                    b = data[i+len(delim):]
-                    ret.extend(a)
-                    self.give(b)
-                    break
+                    ret.extend(data)
+            else:
+                a = data[:i]
+                b = data[i+len(delim):]
+                ret.extend(a)
+                self.give(b)
+                break
+
         return ret
 
     def recv_line(self):
@@ -139,7 +148,6 @@ class NBBSocket:
                 if e.errno == errno.EAGAIN:
                     if e.received > 0:
                         data = self.take(e.received)
-                        pass
                     else:
                         time.sleep(DEFAULT_SLEEP)
                         continue

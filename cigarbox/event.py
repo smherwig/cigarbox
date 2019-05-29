@@ -17,6 +17,7 @@ class _Event:
         self.fn = fn
         self.mask = mask
         self.timeout = timeout
+        self.dispatchable = True
         if timeout > 0:
             self.reset_expires()
         else:
@@ -39,7 +40,8 @@ DEFAULT_MIN_TIMEOUT_MS = 5000
 
 class Loop:
     def __init__(self, min_timeout=None):
-        self._map = {} 
+        self._active = {} 
+        self._pending = {}
         self._neg_idents = bitops.Bitmap()
         self._neg_idents.set(0)
         self.min_timeout = DEFAULT_MIN_TIMEOUT_MS
@@ -62,26 +64,26 @@ class Loop:
 
     def _reset_min_timeout(self):
         self.min_timeout = DEFAULT_MIN_TIMEOUT_MS
-        for ident, event in self._map.items():
+        for ident, event in self._pending.items():
             if event.has_timeout() and event.timeout < self.min_timeout:
                 self._min_timeout = event.timeout
         self.min_timeout_stale = False
 
     def _dispatch(self, ident, event, what):
+        print 'dispatch ident=%d, what=%08x' % (ident, what)
         event.fn(what, self)
         if not event.mask & PERSIST:
-            self.remove(ident)
-            if what & TIMEOUT:
-                assert event.timeout > 0
-                if event.timeout == self.min_timeout:
-                    self.min_timeout_stale = True
+            event.dispatchable = False
+            if event.timeout == self.min_timeout:
+                self.min_timeout_stale = True
         else:
             if what & TIMEOUT:
+                assert event.timeout > 0
                 event.reset_expires()
 
     def _make_select_args(self):
         r = []; w = []; e = []
-        for ident, event in self._map.items():
+        for ident, event in self._active.items():
             if event.fd >= 0:
                 if event.mask & READ:
                     r.append(event.fd)
@@ -103,7 +105,7 @@ class Loop:
 
         for fd in r:
             what = 0
-            event = self._map.get(fd)
+            event = self._active.get(fd)
             assert event.fd == fd
             what |= READ
             if event.has_timeout() and event.has_expired():
@@ -112,7 +114,7 @@ class Loop:
 
         for fd in w:
             what = 0
-            event = self._map.get(fd)
+            event = self._active.get(fd)
             assert event.fd == fd
             what |= WRITE 
             if event.has_timeout() and event.has_expired():
@@ -121,14 +123,14 @@ class Loop:
 
         for fd in e:
             what = 0
-            event = self._map.get(fd)
+            event = self._active.get(fd)
             assert event.fd == fd
             what |= WRITE | READ
             if event.has_timeout() and event.has_expired():
                 what |= TIMEOUT
             self._dispatch(fd, event, what)
 
-        for ident, event in self._map.items(): 
+        for ident, event in self._active.items(): 
             if event.has_timeout() and event.has_expired():
                 self._dispatch(ident, event, TIMEOUT)
 
@@ -137,8 +139,7 @@ class Loop:
 
     def _make_pollster(self):
         pollster = select.poll()
-        print '_make_pollster: %s' % str(self._map.keys())
-        for ident, event in self._map.items():
+        for ident, event in self._active.items():
             flags = 0
             if event.fd >= 0:
                 if event.mask & READ:
@@ -155,27 +156,47 @@ class Loop:
             what |= READ
         if flags & (select.POLLOUT |select.POLLHUP | select.POLLERR):
             what |= WRITE
-        assert what
+        assert what, 'flags=0x%08x' % flags
         return what
 
+    def _merge_pending(self):
+        print 'pending: %s' % str(self._pending.keys())
+        for ident, event in self._active.items():
+            if not event.dispatchable:
+                del self._active[ident] 
+        self._active.update(self._pending)
+        self._pending = {}
+        print 'active: %s' % str(self._active.keys())
+
     def _poll(self):
+        self._merge_pending()
         pollster = self._make_pollster()
-        try:
-            r = pollster.poll(self.min_timeout)
-        except select.error as e:
-            if e.errno != errno.EINTR:
-                raise
-            r = []
+
+        while True:
+            try:
+                r = pollster.poll(self.min_timeout)
+            except select.error as e:
+                if e.errno == errno.EINTR:
+                    continue
+                else:
+                    raise
+            break
+
+        print 'r=%s' % str(r)
 
         for fd, flags in r:
-            event = self._map.get(fd)
+            event = self._active.get(fd)
+            if not event.dispatchable:
+                continue
             assert event.fd == fd
             what = self._poll2event(flags)
             if event.has_timeout() and event.has_expired():
                 what |= TIMEOUT
             self._dispatch(fd, event, what)
 
-        for ident, event in self._map.items(): 
+        for ident, event in self._active.items(): 
+            if not event.dispatchable:
+                continue
             if event.has_timeout() and event.has_expired():
                 self._dispatch(ident, event, TIMEOUT)
 
@@ -184,10 +205,11 @@ class Loop:
 
     def run(self):
         poll_fn = self._get_poll_fn()
-        while self._map:
+        while self._pending or self._active:
             poll_fn()
 
     def add(self, fd, fn, mask, timeout=0):
+        print 'event: add(fd=%d, mask=%d, timeout=%d)' % (fd, mask, timeout)
         if fd >= 0:
             ident = fd
         else:
@@ -197,19 +219,21 @@ class Loop:
         event = _Event(fd, fn, mask, timeout)
         if event.has_timeout() and (event.timeout < self.min_timeout):
             self.min_timeout = event.timeout
-        print 'add %d %08x' % (ident, mask)
-        self._map[ident] = event
+        self._pending[ident] = event
         return ident
 
     def remove(self, ident):
-        print 'remove ident=%d' % ident
-        if not ident in self._map:
+        print 'event: remove(ident=%d)' % ident
+        if ident not in self._active and ident not in self._pending:
             raise ValueError('ident %d is not in run loop' % ident)
         if ident < 0:
             assert self._neg_idents.is_set(-1 * ident)
             self._neg_idents.clr(-1 * ident)
-        del self._map[ident]
-        self._reset_min_timeout()
+        if ident in self._active:
+            event = self._active[ident]
+            event.dispatchable = False
+        if ident in self._pending:
+            del self._pending[ident]
 
     def once(self, fn, ms):
         return self.add(-1, fn, TIMEOUT, ms) 
