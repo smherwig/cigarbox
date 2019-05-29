@@ -6,7 +6,6 @@ import time
 
 from cigarbox import bitops
 
-
 READ    = 1
 WRITE   = 2
 TIMEOUT = 4
@@ -46,7 +45,6 @@ class Loop:
         self.min_timeout = DEFAULT_MIN_TIMEOUT_MS
         self.min_timeout_stale = False
 
-
     def _default_min_timeout(self):
         poll_fn = self._get_poll_fn()
         if poll_fn == self._poll:
@@ -64,7 +62,7 @@ class Loop:
 
     def _reset_min_timeout(self):
         self.min_timeout = DEFAULT_MIN_TIMEOUT_MS
-        for ident, event in self._map:
+        for ident, event in self._map.items():
             if event.has_timeout() and event.timeout < self.min_timeout:
                 self._min_timeout = event.timeout
         self.min_timeout_stale = False
@@ -86,11 +84,11 @@ class Loop:
         for ident, event in self._map.items():
             if event.fd >= 0:
                 if event.mask & READ:
-                    r.append(fd)
+                    r.append(event.fd)
                 if event.mask & WRITE:
-                    w.append(fd)
+                    w.append(event.fd)
                 if event.mask & WRITE or event.mask & READ:
-                    e.append(fd)
+                    e.append(event.fd)
         return r, w, e
 
     def _select(self):
@@ -139,6 +137,7 @@ class Loop:
 
     def _make_pollster(self):
         pollster = select.poll()
+        print '_make_pollster: %s' % str(self._map.keys())
         for ident, event in self._map.items():
             flags = 0
             if event.fd >= 0:
@@ -148,8 +147,9 @@ class Loop:
                     flags |= select.POLLOUT
                 if flags:
                     pollster.register(event.fd, flags)
+        return pollster
 
-    def _poll2event(flags):
+    def _poll2event(self, flags):
         what = 0
         if flags & (select.POLLIN | select.POLLERR | select.POLLHUP):
             what |= READ
@@ -175,7 +175,7 @@ class Loop:
                 what |= TIMEOUT
             self._dispatch(fd, event, what)
 
-        for ident, event in self._map: 
+        for ident, event in self._map.items(): 
             if event.has_timeout() and event.has_expired():
                 self._dispatch(ident, event, TIMEOUT)
 
@@ -196,11 +196,13 @@ class Loop:
             ident *= -1
         event = _Event(fd, fn, mask, timeout)
         if event.has_timeout() and (event.timeout < self.min_timeout):
-                self.min_timeout = event.timeout
+            self.min_timeout = event.timeout
+        print 'add %d %08x' % (ident, mask)
         self._map[ident] = event
         return ident
 
     def remove(self, ident):
+        print 'remove ident=%d' % ident
         if not ident in self._map:
             raise ValueError('ident %d is not in run loop' % ident)
         if ident < 0:

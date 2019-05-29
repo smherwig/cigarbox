@@ -15,7 +15,6 @@ BUF_SIZE = 8192
 STEP_SIZE = 8192
 DEFAULT_SLEEP = 0.001
 
-
 class NBBSocketError(socket.error):
     def __init__(self, sockerr, sent=0, received=0):
         socket.error.__init__(self, sockerr.errno, sockerr.strerror)
@@ -53,6 +52,7 @@ class NBBSocket:
         closed.
         """
         need = count - self.have()
+        print '> recv: have=%d, count=%d, need=%d' % (self.have(), count, need)
         got = 0
         while got < need:
             try:
@@ -66,7 +66,9 @@ class NBBSocket:
                 break
             self.rbuf.extend(data) 
             got += len(data)
+            print 'got (%d bytes): %s' % (len(data), data)
         ret = self.take(count)
+        print '< recv: (%d bytes): %s' % (len(ret), ret)
         return ret
 
     def recv_all(self):
@@ -82,7 +84,7 @@ class NBBSocket:
             else:
                 ret.extend(data)
 
-    def recv_delim(self):
+    def recv_delim(self, delim):
         ret = bytearray()
         while True:
             try:
@@ -135,8 +137,12 @@ class NBBSocket:
                 data = self.recv(BUF_SIZE)
             except NBBSocketError as e:
                 if e.errno == errno.EAGAIN:
-                    time.sleep(DEFAULT_SLEEP)
-                    continue
+                    if e.received > 0:
+                        data = self.take(e.received)
+                        pass
+                    else:
+                        time.sleep(DEFAULT_SLEEP)
+                        continue
                 else:
                     raise
             if data == '':
@@ -160,6 +166,9 @@ class NBBSocket:
         return ret
 
     def _send_raw(self, data, flags=0):
+        """Either sends exactly len(data) (and returns len(data)) or throws an
+        error.  If partial data was sent, the error contains the amount sent.
+        """
         tot = 0
         count = len(data)
         while tot < count:
@@ -191,13 +200,25 @@ class NBBSocket:
     def send(self, data, flags=0):
         return self._send_raw(data, flags)
 
-    # TODO: make non-blocking
     def close(self):
+        self.sock.setblocking(True)
         self.sock.close()
 
     # TODO: make non-blocking
     def connect(self):
         self.sock.connect()
+
+    # cheap inheritance; used to pass all other attribute
+    # references ot the underlying socket object
+    def __getattr__(self, attr):
+        try:
+            retattr = getattr(self.sock, attr)
+        except AttributeError:
+            raise AttributeError("%s instance has no attribute '%s'"
+                                 %(self.__class__.__name__, attr))
+        else:
+            return retattr
+
 
 def wrap_nbb(sock):
     return NBBSocket(sock)
