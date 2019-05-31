@@ -8,7 +8,7 @@ devinstall:
 	pip install --user -e .
 
 uninstall:
-	pip uninstall mbx 
+	pip uninstall cigarbox 
 
 clean:
 	rm -rf build
