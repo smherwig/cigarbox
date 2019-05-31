@@ -15,7 +15,7 @@ import array
 
 _INDEX_ERR_FMT = 'invalid bit index (%d) for BitMap(nbits=%d, resizeable=%s)'
 
-class Bitmap:
+class Bitmap(object):
     def __init__(self, nbits=64, resizeable=True):
         x = nbits / 8 
         y = nbits % 8 
