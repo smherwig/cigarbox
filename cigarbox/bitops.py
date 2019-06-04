@@ -19,21 +19,21 @@ class Bitmap(object):
     def __init__(self, nbits=64, resizeable=True):
         x = nbits / 8 
         y = nbits % 8 
-        if y != 0:
-            x = x +1
+        if y:
+            x += 1
         self._nbits = nbits
         self._resizeable = resizeable
         self._a = array.array('B', [0 for i in xrange(x)])
 
     def _resize(self, nbits):
+        self._nbits = nbits
         x = nbits / 8 
         y = nbits % 8 
-        if y != 0:
-            x = x +1
+        if y:
+            x += 1
         need = x - len(self._a)
-        assert need > 0
-        self._nbits = nbits
-        self._a.extend([0 for i in xrange(need)])
+        if need > 0:
+            self._a.extend([0 for i in xrange(need)])
 
     def _check_arg(self, i):
         if i < 0:
