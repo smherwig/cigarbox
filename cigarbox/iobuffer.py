@@ -7,8 +7,11 @@ _EOF_READ_FMT = "can't read %d bytes from IOBuffer; buffer only has %d bytes lef
 _EOF_WRITE_FMT = "can't write %d bytes to bounded (maxsize=%d) IOBuffer; buffer only has %d bytes available"
 
 class IOBuffer:
-    def __init__(self, maxsize=-1):
-        self._a = bytearray()
+    def __init__(self, data=None, maxsize=-1):
+        if data:
+            self._a = bytearray(data)
+        else:
+            self._a = bytearray()
         self._i = 0
         self.maxsize = maxsize
 
@@ -21,6 +24,9 @@ class IOBuffer:
 
     def tell(self):
         return self._i
+
+    def left(self):
+        return len(self._a) - self._i
 
     def rewind(self):
         self._i = 0
